@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig, ResponseType } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, ResponseType } from 'axios';
 import crypto from 'crypto';
 import qs from 'qs';
 import Oauth2Store from '../store/oauth2';
@@ -10,11 +10,9 @@ import {
 } from '../ipc/network/authorize-user-in-system-browser';
 
 const BRUNO_OAUTH2_CALLBACK_URL = 'https://oauth.usebruno.com/vscode/callback';
-// const BRUNO_OAUTH2_CALLBACK_URL = 'http://localhost:8081/vscode/callback';
 
 const oauth2Store = new Oauth2Store();
 
-// --- Types ---
 
 export interface OAuth2TokenResult {
   collectionUid: string;
@@ -33,7 +31,6 @@ interface TokenRequestConfig {
   responseType: ResponseType;
 }
 
-// --- Store wrappers ---
 
 export const persistOauth2Credentials = ({ collectionUid, url, credentials, credentialsId }: {
   collectionUid: string;
@@ -41,7 +38,7 @@ export const persistOauth2Credentials = ({ collectionUid, url, credentials, cred
   credentials: Record<string, unknown>;
   credentialsId: string;
 }): void => {
-  if ((credentials as any)?.error || !(credentials as any)?.access_token) return;
+  if (credentials.error || !credentials.access_token) return;
   const enhancedCredentials = {
     ...credentials,
     created_at: Date.now()
@@ -69,7 +66,6 @@ export const getStoredOauth2Credentials = ({ collectionUid, url, credentialsId }
   }
 };
 
-// --- Token expiry ---
 
 export const isTokenExpired = (credentials: Record<string, unknown> | null): boolean => {
   if (!credentials?.access_token) {
@@ -82,7 +78,6 @@ export const isTokenExpired = (credentials: Record<string, unknown> | null): boo
   return Date.now() > expiryTime;
 };
 
-// --- PKCE helpers ---
 
 export const generateCodeVerifier = (): string => {
   return crypto.randomBytes(22).toString('hex');
@@ -97,7 +92,6 @@ export const generateCodeChallenge = (codeVerifier: string): string => {
     .replace(/=/g, '');
 };
 
-// --- Additional parameters ---
 
 export const applyAdditionalParameters = (
   requestConfig: { url: string; headers: Record<string, string> },
@@ -127,7 +121,6 @@ export const applyAdditionalParameters = (
   });
 };
 
-// --- Safe JSON parsing ---
 
 const safeParseJSONBuffer = (data: unknown): Record<string, unknown> | null => {
   try {
@@ -138,7 +131,6 @@ const safeParseJSONBuffer = (data: unknown): Record<string, unknown> | null => {
   }
 };
 
-// --- Token fetching core ---
 
 const fetchTokenFromUrl = async (requestConfig: TokenRequestConfig): Promise<{ credentials: Record<string, unknown> | null; requestDetails: Record<string, unknown> }> => {
   let requestDetails: Record<string, unknown> = { request: {}, response: {} };
@@ -165,9 +157,10 @@ const fetchTokenFromUrl = async (requestConfig: TokenRequestConfig): Promise<{ c
       fromCache: false,
       completed: true
     };
-  } catch (error: any) {
-    if (error.response) {
-      const errorData = safeParseJSONBuffer(error.response.data);
+  } catch (error: unknown) {
+    const axiosError = error as AxiosError;
+    if (axiosError.response) {
+      const errorData = safeParseJSONBuffer(axiosError.response.data);
       requestDetails = {
         request: {
           url: requestConfig.url,
@@ -176,11 +169,11 @@ const fetchTokenFromUrl = async (requestConfig: TokenRequestConfig): Promise<{ c
           method: 'POST'
         },
         response: {
-          url: error.response.config?.url,
-          headers: error.response.headers,
+          url: axiosError.response.config?.url,
+          headers: axiosError.response.headers,
           data: errorData,
-          status: error.response.status,
-          statusText: error.response.statusText,
+          status: axiosError.response.status,
+          statusText: axiosError.response.statusText,
           error: errorData
         },
         requestId: Date.now().toString(),
@@ -197,7 +190,7 @@ const fetchTokenFromUrl = async (requestConfig: TokenRequestConfig): Promise<{ c
         },
         response: {
           status: '-',
-          statusText: error?.code || 'Unknown error',
+          statusText: axiosError?.code || 'Unknown error',
           headers: {},
           data: null
         },
@@ -211,7 +204,6 @@ const fetchTokenFromUrl = async (requestConfig: TokenRequestConfig): Promise<{ c
   return { credentials: parsedResponseData, requestDetails };
 };
 
-// --- Build request config helpers ---
 
 const buildBaseRequestConfig = (url: string): TokenRequestConfig => ({
   method: 'POST',
@@ -243,7 +235,6 @@ const applyClientCredentialsToData = (
   }
 };
 
-// --- Cached token resolution ---
 
 const resolveStoredCredentials = async ({
   collectionUid,
@@ -299,8 +290,6 @@ const resolveStoredCredentials = async ({
   if (autoFetchToken) return { shouldFetch: true };
   return { shouldFetch: false, result: { collectionUid, url, credentials: null, credentialsId } };
 };
-
-// --- Grant type implementations ---
 
 export const getOAuth2TokenUsingClientCredentials = async ({ request, collectionUid, forceFetch = false }: {
   request: Record<string, unknown>;
@@ -430,7 +419,6 @@ export const getOAuth2TokenUsingPasswordCredentials = async ({ request, collecti
   return { collectionUid, url, credentials, credentialsId: credentialsId || 'default', debugInfo };
 };
 
-// --- Authorization code grant ---
 
 export const getOAuth2TokenUsingAuthorizationCode = async ({ request, collectionUid, forceFetch = false }: {
   request: Record<string, unknown>;
@@ -529,7 +517,6 @@ export const getOAuth2TokenUsingAuthorizationCode = async ({ request, collection
   return { collectionUid, url, credentials, credentialsId: credentialsId || 'default', debugInfo };
 };
 
-// --- Implicit grant ---
 
 export const getOAuth2TokenUsingImplicitGrant = async ({ request, collectionUid, forceFetch = false }: {
   request: Record<string, unknown>;
@@ -599,7 +586,6 @@ export const getOAuth2TokenUsingImplicitGrant = async ({ request, collectionUid,
   return { collectionUid, url: authorizationUrl, credentials, credentialsId: credentialsId || 'default' };
 };
 
-// --- Refresh token ---
 
 export const refreshOauth2Token = async ({ requestCopy, collectionUid }: {
   requestCopy: Record<string, unknown>;
@@ -641,7 +627,7 @@ export const refreshOauth2Token = async ({ requestCopy, collectionUid }: {
   const { credentials: newCredentials, requestDetails } = await fetchTokenFromUrl(requestConfig);
   debugInfo.data.push(requestDetails);
 
-  if (!newCredentials || (newCredentials as any)?.error) {
+  if (!newCredentials || newCredentials.error) {
     clearOauth2Credentials({ collectionUid, url, credentialsId: credentialsId || 'default' });
     return { collectionUid, url, credentials: null, credentialsId: credentialsId || 'default', debugInfo };
   }
@@ -650,7 +636,6 @@ export const refreshOauth2Token = async ({ requestCopy, collectionUid }: {
   return { collectionUid, url, credentials: newCredentials, credentialsId: credentialsId || 'default', debugInfo };
 };
 
-// --- Token placement ---
 
 export const placeOAuth2Token = (
   request: { headers?: Record<string, string>; url?: string },
@@ -658,7 +643,7 @@ export const placeOAuth2Token = (
   oauth2Config: OAuth2
 ): void => {
   const { tokenPlacement, tokenHeaderPrefix = 'Bearer', tokenQueryKey = 'access_token' } = oauth2Config;
-  const tokenSource = (oauth2Config as any).tokenSource || 'access_token';
+  const tokenSource = oauth2Config.tokenSource || 'access_token';
   const tokenValue = tokenSource === 'id_token'
     ? (credentials.id_token as string)
     : (credentials.access_token as string);

@@ -16,17 +16,31 @@ import { interpolate } from '@usebruno/common';
 import { cloneDeep } from 'lodash';
 import type { OAuth2 } from '@bruno-types/common/auth';
 
+export interface OAuth2VariableContext {
+  envVars?: Record<string, unknown>;
+  runtimeVariables?: Record<string, unknown>;
+  processEnvVars?: Record<string, string>;
+}
+
+interface FetchOAuth2Payload {
+  itemUid: string;
+  request: Record<string, unknown>;
+  collection: Record<string, unknown>;
+}
+
 export function registerOAuth2Handlers(): void {
   // Fetch credentials (all grant types)
   registerHandler('renderer:fetch-oauth2-credentials', async (args) => {
-    const [payload] = args as [{ itemUid: string; request: Record<string, unknown>; collection: Record<string, unknown> }];
+    const [payload] = args as [FetchOAuth2Payload];
     const { request, collection } = payload;
-    const collectionUid = (collection as any)?.uid || (collection as any)?.collectionUid || '';
+    const collectionUid = (collection as { uid?: string; collectionUid?: string })?.uid
+      || (collection as { uid?: string; collectionUid?: string })?.collectionUid || '';
 
-    // Interpolate OAuth2 config before token fetch (resolves {{variables}})
-    const interpolatedRequest = interpolateOAuth2Config(request);
-    const oauth2Config = (interpolatedRequest as any)?.oauth2 || {};
-    const grantType = oauth2Config.grantType;
+    // Use mergedVariables from the webview if available (manual fetch path)
+    const additionalVars = (request.mergedVariables as Record<string, unknown>) || undefined;
+    const interpolatedRequest = interpolateOAuth2Config(request, additionalVars);
+    const oauth2Config = ((interpolatedRequest.auth as { oauth2?: OAuth2 })?.oauth2 || interpolatedRequest.oauth2) as OAuth2 | undefined;
+    const grantType = oauth2Config?.grantType;
 
     switch (grantType) {
       case 'client_credentials':
@@ -44,10 +58,15 @@ export function registerOAuth2Handlers(): void {
 
   // Refresh credentials
   registerHandler('renderer:refresh-oauth2-credentials', async (args) => {
-    const [payload] = args as [{ itemUid: string; request: Record<string, unknown>; collection: Record<string, unknown> }];
+    const [payload] = args as [FetchOAuth2Payload];
     const { request, collection } = payload;
-    const collectionUid = (collection as any)?.uid || (collection as any)?.collectionUid || '';
-    return refreshOauth2Token({ requestCopy: request, collectionUid });
+    const collectionUid = (collection as { uid?: string; collectionUid?: string })?.uid
+      || (collection as { uid?: string; collectionUid?: string })?.collectionUid || '';
+
+    // Interpolate OAuth2 config before refresh (resolves {{variables}})
+    const additionalVars = (request.mergedVariables as Record<string, unknown>) || undefined;
+    const interpolatedRequest = interpolateOAuth2Config(request, additionalVars);
+    return refreshOauth2Token({ requestCopy: interpolatedRequest, collectionUid });
   });
 
   // Clear cached credentials
@@ -72,17 +91,23 @@ export function registerOAuth2Handlers(): void {
  * The main interpolateVars call handles the request URL/headers/body, but
  * nested auth.oauth2 fields (accessTokenUrl, clientId, etc.) need separate
  * interpolation before we use them for token fetching.
+ *
+ * @param request - The request object with variable properties attached
+ * @param additionalVars - Extra variables to merge in (from execution context or webview's getAllVariables)
  */
-function interpolateOAuth2Config(request: Record<string, unknown>): Record<string, unknown> {
+function interpolateOAuth2Config(
+  request: Record<string, unknown>,
+  additionalVars?: Record<string, unknown>
+): Record<string, unknown> {
   const requestCopy = cloneDeep(request);
-  const oauth2 = ((requestCopy.auth as any)?.oauth2 || requestCopy.oauth2) as Record<string, unknown> | undefined;
+  const oauth2 = ((requestCopy.auth as { oauth2?: Record<string, unknown> })?.oauth2 || requestCopy.oauth2) as Record<string, unknown> | undefined;
   if (!oauth2) return requestCopy;
 
   // Build the variable context from the request (same sources as interpolateVars)
   // Flatten vars.req array into a key-value map (request variables defined in the Vars tab)
-  const varsReq = ((requestCopy as any)?.vars?.req || (requestCopy as any)?.auth?.oauth2?.vars?.req || []) as Array<{ name: string; value: string; enabled?: boolean }>;
+  const varsReqSource = (requestCopy as { vars?: { req?: Array<{ name: string; value: string; enabled?: boolean }> } })?.vars?.req || [];
   const flattenedRequestVars: Record<string, unknown> = {};
-  for (const v of varsReq) {
+  for (const v of varsReqSource) {
     if (v.enabled !== false && v.name) {
       flattenedRequestVars[v.name] = v.value;
     }
@@ -91,10 +116,13 @@ function interpolateOAuth2Config(request: Record<string, unknown>): Record<strin
   const vars: Record<string, unknown> = {
     ...(requestCopy.globalEnvironmentVariables as Record<string, unknown> || {}),
     ...(requestCopy.collectionVariables as Record<string, unknown> || {}),
+    ...(requestCopy.envVars as Record<string, unknown> || {}),
     ...(requestCopy.folderVariables as Record<string, unknown> || {}),
     ...(requestCopy.requestVariables as Record<string, unknown> || {}),
     ...flattenedRequestVars,
     ...(requestCopy.oauth2CredentialVariables as Record<string, unknown> || {}),
+    ...(requestCopy.runtimeVariables as Record<string, unknown> || {}),
+    ...(additionalVars || {}),
   };
 
   // Interpolate all string values in the oauth2 config
@@ -105,17 +133,18 @@ function interpolateOAuth2Config(request: Record<string, unknown>): Record<strin
 
   for (const field of fieldsToInterpolate) {
     if (typeof oauth2[field] === 'string' && (oauth2[field] as string).includes('{{')) {
-      oauth2[field] = (interpolate as any)(oauth2[field], vars);
+      oauth2[field] = (interpolate as (str: string, vars: Record<string, unknown>) => string)(oauth2[field] as string, vars);
     }
   }
 
-  // Write back interpolated config
-  if ((requestCopy.auth as any)?.oauth2) {
-    (requestCopy.auth as any).oauth2 = oauth2;
+  // Write back interpolated config to both locations
+  if ((requestCopy.auth as { oauth2?: Record<string, unknown> })?.oauth2) {
+    (requestCopy.auth as { oauth2: Record<string, unknown> }).oauth2 = oauth2;
   }
-  if (requestCopy.oauth2) {
-    requestCopy.oauth2 = oauth2;
-  }
+  // Always ensure oauth2 is at top level — grant type functions read from request.oauth2.
+  // When auth is inherited (mergeAuth), the config only lives at auth.oauth2;
+  // without this, auto-fetch during request execution silently fails.
+  requestCopy.oauth2 = oauth2;
 
   return requestCopy;
 }
@@ -152,14 +181,26 @@ function populateOAuth2CredentialVariables(
  */
 export async function applyOAuth2ToRequest(
   request: Record<string, unknown>,
-  collectionUid: string
+  collectionUid: string,
+  variableContext?: OAuth2VariableContext
 ): Promise<void> {
   const auth = request.auth as { mode?: string; oauth2?: OAuth2 } | undefined;
   const oauth2Raw = (request.oauth2 as OAuth2 | undefined) || auth?.oauth2;
   if (!oauth2Raw) return;
 
-  // Fix 1: Interpolate OAuth2 config values before using them
-  const interpolatedRequest = interpolateOAuth2Config(request);
+  // Build additional vars from execution context (envVars, runtimeVariables, processEnvVars)
+  const additionalVars: Record<string, unknown> = {};
+  if (variableContext?.envVars) {
+    Object.assign(additionalVars, variableContext.envVars);
+  }
+  if (variableContext?.runtimeVariables) {
+    Object.assign(additionalVars, variableContext.runtimeVariables);
+  }
+  if (variableContext?.processEnvVars) {
+    additionalVars.process = { env: { ...variableContext.processEnvVars } };
+  }
+
+  const interpolatedRequest = interpolateOAuth2Config(request, additionalVars);
   const interpolatedAuth = interpolatedRequest.auth as { mode?: string; oauth2?: OAuth2 } | undefined;
   const oauth2 = (interpolatedRequest.oauth2 as OAuth2 | undefined) || interpolatedAuth?.oauth2;
   if (!oauth2) return;
@@ -178,7 +219,7 @@ export async function applyOAuth2ToRequest(
     const stored = getStoredOauth2Credentials({ collectionUid, url, credentialsId: effectiveCredentialsId });
 
     if (stored && !isTokenExpired(stored)) {
-      placeOAuth2Token(request as any, stored, oauth2);
+      placeOAuth2Token(request as { headers?: Record<string, string>; url?: string }, stored, oauth2);
       populateOAuth2CredentialVariables(request, effectiveCredentialsId, stored);
       return;
     }
@@ -194,12 +235,12 @@ export async function applyOAuth2ToRequest(
     const stored = getStoredOauth2Credentials({ collectionUid, url: storedUrl, credentialsId: effectiveCredentialsId });
 
     if (stored && !isTokenExpired(stored)) {
-      placeOAuth2Token(request as any, stored, oauth2);
+      placeOAuth2Token(request as { headers?: Record<string, string>; url?: string }, stored, oauth2);
       populateOAuth2CredentialVariables(request, effectiveCredentialsId, stored);
       return;
     }
 
-    // Fix 3: Auto-fetch for browser flows when autoFetchToken is true
+    // Auto-fetch for browser flows when autoFetchToken is true
     if (autoFetchToken) {
       if (grantType === 'authorization_code') {
         result = await getOAuth2TokenUsingAuthorizationCode({ request: interpolatedRequest, collectionUid });
@@ -208,7 +249,7 @@ export async function applyOAuth2ToRequest(
       }
     } else if (stored) {
       // Return expired token if autoFetchToken is disabled
-      placeOAuth2Token(request as any, stored, oauth2);
+      placeOAuth2Token(request as { headers?: Record<string, string>; url?: string }, stored, oauth2);
       populateOAuth2CredentialVariables(request, effectiveCredentialsId, stored);
       return;
     } else {
@@ -216,19 +257,20 @@ export async function applyOAuth2ToRequest(
     }
   }
 
-  // Fix 2: Place token and populate credential variables for script access
+  // Place token and populate credential variables for script access
   if (result?.credentials) {
-    placeOAuth2Token(request as any, result.credentials, oauth2);
+    placeOAuth2Token(request as { headers?: Record<string, string>; url?: string }, result.credentials, oauth2);
     populateOAuth2CredentialVariables(request, effectiveCredentialsId, result.credentials);
 
     // Store oauth2Credentials on request for UI to read back
-    (request as any).oauth2Credentials = {
+    const existingOauth2Creds = request.oauth2Credentials as { folderUid?: string } | undefined;
+    request.oauth2Credentials = {
       credentials: result.credentials,
       url: result.url,
       collectionUid,
       credentialsId: effectiveCredentialsId,
       debugInfo: result.debugInfo,
-      folderUid: (request as any).oauth2Credentials?.folderUid
+      folderUid: existingOauth2Creds?.folderUid
     };
   }
 }

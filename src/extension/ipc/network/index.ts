@@ -267,10 +267,14 @@ const executeRequest = async (
     }
 
     // Apply OAuth2 token to request (auto-fetch/refresh if needed)
-    const authMode = (interpolatedRequest as any)?.auth?.mode;
-    if (authMode === 'oauth2' || (interpolatedRequest as any)?.oauth2) {
+    const authMode = ((interpolatedRequest as { auth?: { mode?: string } })?.auth)?.mode;
+    if (authMode === 'oauth2' || (interpolatedRequest as { oauth2?: unknown }).oauth2) {
       addTimelineEvent('Applying OAuth2 token');
-      await applyOAuth2ToRequest(interpolatedRequest as unknown as Record<string, unknown>, context.collectionUid);
+      await applyOAuth2ToRequest(interpolatedRequest as unknown as Record<string, unknown>, context.collectionUid, {
+        envVars: context.envVars,
+        runtimeVariables: context.runtimeVariables,
+        processEnvVars: context.processEnvVars
+      });
     }
 
     addTimelineEvent('Preparing request');
