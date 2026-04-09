@@ -127,8 +127,6 @@ interface ImplicitFlowOptions {
   additionalParameters?: OAuthAdditionalParameter[];
 }
 
-// --- Authorization code flow ---
-
 export async function getOAuth2AuthorizationCode(options: AuthorizationCodeOptions): Promise<AuthorizationResult> {
   if (isAuthorizationInProgress()) {
     throw new Error('An OAuth2 authorization request is already in progress');
@@ -166,8 +164,6 @@ export async function getOAuth2AuthorizationCode(options: AuthorizationCodeOptio
   return openBrowserAndWaitForCallback(url.toString());
 }
 
-// --- Implicit flow ---
-
 export async function getOAuth2ImplicitToken(options: ImplicitFlowOptions): Promise<AuthorizationResult> {
   if (isAuthorizationInProgress()) {
     throw new Error('An OAuth2 authorization request is already in progress');
@@ -197,13 +193,8 @@ export async function getOAuth2ImplicitToken(options: ImplicitFlowOptions): Prom
     });
   }
 
-  // Implicit flow tokens arrive in the URL fragment (#access_token=...).
-  // VS Code URI handlers don't receive fragments, so we use a local HTTP server
-  // that serves a page which extracts the fragment and sends it back.
-  return openBrowserWithLocalServer(url.toString());
+  return openBrowserAndWaitForCallback(url.toString());
 }
-
-// --- Browser + URI handler (for authorization code) ---
 
 async function openBrowserAndWaitForCallback(authorizeUrl: string): Promise<AuthorizationResult> {
   return new Promise<AuthorizationResult>((resolve, reject) => {
@@ -224,141 +215,6 @@ async function openBrowserAndWaitForCallback(authorizeUrl: string): Promise<Auth
         pendingAuthReject = null;
         reject(new Error('Failed to open authorization URL in system browser'));
       }
-    });
-  });
-}
-
-// --- Local HTTP server (for implicit flow fragment capture) ---
-
-const CALLBACK_HTML = `
-<!DOCTYPE html>
-<html>
-<body>
-<p>Processing OAuth2 callback... You can close this tab.</p>
-<script>
-  // Extract token from URL fragment and send to local server
-  const hash = window.location.hash.substring(1);
-  if (hash) {
-    fetch('/callback?' + hash, { method: 'POST' })
-      .then(() => window.close())
-      .catch(() => document.body.innerHTML = '<p>Authorization complete. You can close this tab.</p>');
-  } else {
-    // Fallback: check query params (some providers use query for implicit too)
-    const params = window.location.search;
-    if (params) {
-      fetch('/callback' + params, { method: 'POST' })
-        .then(() => window.close())
-        .catch(() => document.body.innerHTML = '<p>Authorization complete. You can close this tab.</p>');
-    } else {
-      document.body.innerHTML = '<p>No authorization data received. You can close this tab.</p>';
-    }
-  }
-</script>
-</body>
-</html>
-`;
-
-async function openBrowserWithLocalServer(authorizeUrl: string): Promise<AuthorizationResult> {
-  return new Promise<AuthorizationResult>((resolve, reject) => {
-    pendingAuthResolve = resolve;
-    pendingAuthReject = reject;
-
-    authTimeoutHandle = setTimeout(() => {
-      cleanup();
-      pendingAuthResolve = null;
-      pendingAuthReject = null;
-      reject(new Error('OAuth2 authorization timed out after 5 minutes'));
-    }, AUTHORIZATION_TIMEOUT_MS);
-
-    // Start local server on a random available port
-    const server = http.createServer((req, res) => {
-      if (req.url?.startsWith('/callback')) {
-        const callbackUrl = new URL(req.url, `http://localhost`);
-        const params = callbackUrl.searchParams;
-
-        const error = params.get('error');
-        if (error) {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('<html><body><p>Authorization failed. You can close this tab.</p></body></html>');
-          cleanup();
-          pendingAuthReject?.(new Error(`OAuth2 error: ${params.get('error_description') || error}`));
-          pendingAuthResolve = null;
-          pendingAuthReject = null;
-          return;
-        }
-
-        const accessToken = params.get('access_token');
-        if (accessToken) {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('<html><body><p>Authorization complete. You can close this tab.</p></body></html>');
-          cleanup();
-          pendingAuthResolve?.({
-            implicitTokens: {
-              access_token: accessToken,
-              token_type: params.get('token_type') || 'Bearer',
-              expires_in: params.get('expires_in') || undefined,
-              scope: params.get('scope') || undefined,
-              state: params.get('state') || undefined
-            }
-          });
-          pendingAuthResolve = null;
-          pendingAuthReject = null;
-          return;
-        }
-
-        // Authorization code fallback
-        const code = params.get('code');
-        if (code) {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('<html><body><p>Authorization complete. You can close this tab.</p></body></html>');
-          cleanup();
-          pendingAuthResolve?.({ authorizationCode: code });
-          pendingAuthResolve = null;
-          pendingAuthReject = null;
-          return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<html><body><p>No authorization data. You can close this tab.</p></body></html>');
-      } else {
-        // Serve the callback page that extracts the fragment
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(CALLBACK_HTML);
-      }
-    });
-
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address();
-      if (!addr || typeof addr === 'string') {
-        cleanup();
-        pendingAuthResolve = null;
-        pendingAuthReject = null;
-        reject(new Error('Failed to start local OAuth2 callback server'));
-        return;
-      }
-
-      localServer = server;
-      const localCallbackUrl = `http://127.0.0.1:${addr.port}/`;
-
-      // Replace the callback URL in the authorization URL
-      const url = new URL(authorizeUrl);
-      url.searchParams.set('redirect_uri', localCallbackUrl);
-
-      vscode.env.openExternal(vscode.Uri.parse(url.toString())).then((opened) => {
-        if (!opened) {
-          cleanup();
-          pendingAuthResolve = null;
-          pendingAuthReject = null;
-          reject(new Error('Failed to open authorization URL in system browser'));
-        }
-      });
-    });
-
-    server.on('error', (err) => {
-      cleanup();
-      pendingAuthResolve = null;
-      pendingAuthReject = null;
-      reject(new Error(`OAuth2 callback server error: ${err.message}`));
     });
   });
 }

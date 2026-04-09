@@ -9,7 +9,8 @@ import {
   type AuthorizationResult
 } from '../ipc/network/authorize-user-in-system-browser';
 
-const BRUNO_OAUTH2_CALLBACK_URL = 'https://oauth.usebruno.com/callback';
+const BRUNO_OAUTH2_CALLBACK_URL = 'https://oauth.usebruno.com/vscode/callback';
+// const BRUNO_OAUTH2_CALLBACK_URL = 'http://localhost:8081/vscode/callback';
 
 const oauth2Store = new Oauth2Store();
 
@@ -451,7 +452,8 @@ export const getOAuth2TokenUsingAuthorizationCode = async ({ request, collection
     autoFetchToken,
     additionalParameters
   } = oAuth;
-  const effectiveCallbackUrl = callbackUrl && callbackUrl.length ? callbackUrl : BRUNO_OAUTH2_CALLBACK_URL;
+  // VS Code always uses Bruno's callback URL with source=vscode param
+  const effectiveCallbackUrl = BRUNO_OAUTH2_CALLBACK_URL;
   const url = oAuth.accessTokenUrl;
 
   if (!authorizationUrl) {
@@ -545,7 +547,8 @@ export const getOAuth2TokenUsingImplicitGrant = async ({ request, collectionUid,
     autoFetchToken,
     additionalParameters
   } = oAuth;
-  const effectiveCallbackUrl = callbackUrl && callbackUrl.length ? callbackUrl : BRUNO_OAUTH2_CALLBACK_URL;
+
+  const effectiveCallbackUrl = BRUNO_OAUTH2_CALLBACK_URL;
 
   if (!authorizationUrl) {
     return { error: 'Authorization URL is required for OAuth2 implicit flow', credentials: null, url: authorizationUrl || '', credentialsId: credentialsId || 'default', collectionUid };
