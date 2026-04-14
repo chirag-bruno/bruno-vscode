@@ -74,6 +74,13 @@ export async function openTransientRequestPanel(
   transientPanels.set(itemUid, panel);
   panel.webview.html = WebviewHelper.getHtmlForWebview(panel.webview, context.extensionUri);
   stateManager.addWebview(panel.webview);
+  stateManager.setActiveEditorWebview(panel.webview);
+
+  panel.onDidChangeViewState((e) => {
+    if (e.webviewPanel.active) {
+      stateManager.setActiveEditorWebview(panel.webview);
+    }
+  });
 
   panel.onDidDispose(() => {
     // stateManager.removeWebview(panel.webview);
