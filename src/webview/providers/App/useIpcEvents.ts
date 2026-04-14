@@ -374,9 +374,29 @@ const useIpcEvents = () => {
     });
 
     const removeAddTransientRequestListener = ipcRenderer.on('main:add-transient-request', (val: any) => {
-      if (val?.collectionUid && val?.item) {
+      if (!val?.collectionUid || !val?.item) return;
+
+      const MAX_RETRIES = 80;
+      const RETRY_DELAY_MS = 50;
+      let retryCount = 0;
+
+      const tryAdd = () => {
+        retryCount++;
+        if (collectionExists(val.collectionUid)) {
         dispatch(addTransientRequest({ collectionUid: val.collectionUid, item: val.item }));
-      }
+          // Signal the extension host that the item is in Redux
+          ipcRenderer.send('transient:item-ready', {
+            itemUid: val.item.uid,
+            collectionUid: val.collectionUid
+          });
+        } else if (retryCount < MAX_RETRIES) {
+          setTimeout(tryAdd, RETRY_DELAY_MS);
+        } else {
+          console.error('[Bruno] Collection not found for transient request after max retries:', val.collectionUid);
+        }
+      };
+
+      tryAdd();
     });
 
     const removeTransientRequestClosedListener = ipcRenderer.on('main:transient-request-closed', (val: any) => {

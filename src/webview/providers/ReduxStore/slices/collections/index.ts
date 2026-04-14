@@ -480,6 +480,9 @@ export const collectionsSlice = createSlice({
         const item = findItemInCollection(collection, itemUid);
         if (item && isItemARequest(item)) {
           const draft = ensureDraft(item);
+          if (draft.request) {
+            (draft.request as { url: string }).url = url;
+          }
           if (draft.request && 'params' in draft.request) {
             type ParamType = { uid?: string; name: string; value: string; enabled?: boolean; type?: string };
             const httpRequest = draft.request as { url: string; params: ParamType[] };

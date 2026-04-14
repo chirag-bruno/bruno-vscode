@@ -83,50 +83,30 @@ export async function openTransientRequestPanel(
   });
 
   panel.onDidDispose(() => {
-    // stateManager.removeWebview(panel.webview);
-    // transientPanels.delete(itemUid);
-    // transientItems.delete(itemU`id);
-    
-    // Close the tab but create a notification system with a timeout, if resurrected, bring back thr item. After the timer expires, remove from everywhere 
-    // // Notify all webviews to clean up the transient item from Redux
-    // stateManager.broadcast('main:transient-request-closed', { collectionUid, itemUid });
-    
-    vscode.window.withProgress<boolean>(                                                                                                                                                                             
-    {                                                                                                                                                                                                     
-      location: vscode.ProgressLocation.Notification,
-      title: `"${itemName}" closed — discarding…`,                                                                                                                                                        
-      cancellable: true                                                                                                                                                                                 
-    },                                                                                                                                                                                                    
-    (progress, token) => new Promise<boolean>((resolve) => {                                                                                                                                               
-      const total = 10_000;                  
-      const step = 100;       
-      let elapsed = 0;                                                                                                                                                                                    
-      const interval = setInterval(() => {                                                                                                                                                                
-        elapsed += step;                                                                                                                                                                                  
-        progress.report({ increment: (step / total) * 100 });                                                                                                                                             
-        if (elapsed >= total) { clearInterval(interval); resolve(false); }                                                                                                                                     
-      }, step);               
-      token.onCancellationRequested(() => { clearInterval(interval); resolve(true); });                                                                                                                       
-    })                                                                                                                                                                                                    
-  ).then((wasCancelled) => {
-    if (wasCancelled){
-      vscode.commands.executeCommand(                                                                                                                                                                     
-        'bruno.openTransientRequest',                                                                                                                                                                   
-        itemUid,                             
-        itemName,                                                                                                                                                                                         
-        collectionUid,
-        collectionPath,
-        item
-      );       
-    } else{
-    stateManager.removeWebview(panel.webview);
-    transientPanels.delete(itemUid);
-    transientItems.delete(itemUid);
-    stateManager.broadcast('main:transient-request-closed', { collectionUid, itemUid });
-    }
-  });
+    const GRACE_MS = 10_000;
 
+    const timer = setTimeout(() => {
+      stateManager.removeWebview(panel.webview);
+      transientPanels.delete(itemUid);
+      transientItems.delete(itemUid);
+      stateManager.broadcast('main:transient-request-closed', { collectionUid, itemUid });
+    }, GRACE_MS);
 
+    vscode.window.showInformationMessage(
+      `"${itemName}" closed. Click Undo to restore.`,
+      'Undo'
+    ).then((choice) => {
+      if (choice === 'Undo') {
+        clearTimeout(timer);
+        vscode.commands.executeCommand(
+          'bruno.openTransientRequest',
+          itemUid,
+          itemName,
+          collectionUid,
+          collectionPath
+        );
+      }
+    });
   });
 
   const webviewSender = (channel: string, ...args: unknown[]) => {
@@ -152,25 +132,13 @@ export async function openTransientRequestPanel(
       setCollectionsMessageSender(originalBroadcastSender);
       setWatcherMessageSender(originalBroadcastSender);
 
-      setTimeout(() => {
-        // Forward the transient item data to this panel's Redux store
-        const item = transientItems.get(itemUid);
-        if (item) {
-          stateManager.sendTo(panel.webview, 'main:add-transient-request', {
-            collectionUid,
-            item
-          });
-        }
-
-        // Then tell the panel to render this request
-        setTimeout(() => {
-          stateManager.sendTo(panel.webview, 'main:set-view', {
-            viewType: 'request',
-            collectionUid,
-            itemUid
-          });
-        }, 200);
-      }, 500);
+      const item = transientItems.get(itemUid);
+      if (item) {
+        stateManager.sendTo(panel.webview, 'main:add-transient-request', {
+          collectionUid,
+          item
+        });
+      }
     } catch (error) {
       console.error('TransientRequestPanel: Error opening collection:', error);
       setCollectionsMessageSender(originalBroadcastSender);
@@ -223,12 +191,22 @@ export async function openTransientRequestPanel(
         if (channel === 'transient:save-request' && args?.[0]) {
           await saveTransientRequest(panel, itemUid, collectionPath, args[0] as Record<string, unknown>);
         }
-        if (channel === 'transient:item-updated' && args?.[0]) {                                                    
-          const { itemUid: updatedUid, item } = args[0] as { itemUid: string; item: Record<string, unknown> };      
-          if (updatedUid && item) {                                                                                 
-            transientItems.set(updatedUid, item);                                                                   
-          }                                                                                                         
-        }       
+        if (channel === 'transient:item-updated' && args?.[0]) {
+          const { itemUid: updatedUid, item } = args[0] as { itemUid: string; item: Record<string, unknown> };
+          if (updatedUid && item) {
+            transientItems.set(updatedUid, item);
+          }
+        }
+        if (channel === 'transient:item-ready' && args?.[0]) {
+          const { itemUid: readyItemUid, collectionUid: readyCollUid } = args[0] as { itemUid: string; collectionUid: string };
+          if (readyItemUid && readyCollUid) {
+            stateManager.sendTo(panel.webview, 'main:set-view', {
+              viewType: 'request',
+              collectionUid: readyCollUid,
+              itemUid: readyItemUid
+            });
+          }
+        }
       } finally {
         clearCurrentWebview();
       }
