@@ -280,13 +280,6 @@ const validateRequestNames = (item: any): string | null => {
   const request = item.draft?.request || item.request;
   if (!request) return null;
 
-  // Validate assertions
-  const assertions = request.assertions || [];
-  for (const assertion of assertions) {
-    if (assertion.name && assertion.name.trim() !== '' && !variableNameRegex.test(assertion.name)) {
-      return `Invalid assertion name "${assertion.name}". Must only contain alphanumeric characters, "-", "_", "."`;
-    }
-  }
 
   // Validate request vars
   const reqVars = request.vars?.req || [];
