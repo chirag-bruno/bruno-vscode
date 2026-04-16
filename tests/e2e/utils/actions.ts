@@ -405,6 +405,55 @@ export async function sendRequest(
 }
 
 /**
+ * Mock the next `sidebar:confirm-remove` IPC call to auto-confirm removal.
+ * Bypasses the native VS Code modal dialog which is hard to interact with in e2e.
+ */
+async function mockConfirmRemove(frame: Frame): Promise<void> {
+  await frame.evaluate(() => {
+    const ipc = (window as any).ipcRenderer;
+    const originalInvoke = ipc.invoke.bind(ipc);
+    ipc.invoke = async (channel: string, ...args: any[]) => {
+      if (channel === 'sidebar:confirm-remove') {
+        ipc.invoke = originalInvoke;
+        return true;
+      }
+      return originalInvoke(channel, ...args);
+    };
+  });
+}
+
+/**
+ * Remove a collection from the sidebar by opening the context menu,
+ * clicking Remove, and auto-confirming via IPC mock.
+ *
+ * @param page - Playwright Page (VS Code workbench)
+ * @param sidebar - The sidebar webview Frame
+ * @param collectionName - Name of the collection to remove
+ */
+export async function removeCollection(
+  page: Page,
+  sidebar: Frame,
+  collectionName: string
+): Promise<void> {
+  const collectionRow = sidebar
+    .locator('[data-testid="sidebar-collection-row"]')
+    .filter({ hasText: collectionName });
+  await collectionRow.hover();
+
+  // Mock the confirmation dialog before triggering removal
+  await mockConfirmRemove(sidebar);
+
+  // Open the 3-dot context menu
+  await collectionRow.locator('[data-testid="collection-actions"]').click();
+
+  // Click "Remove" from the dropdown
+  await sidebar.locator('[role="menuitem"]').filter({ hasText: 'Remove' }).click();
+
+  // Wait for the collection to disappear from the sidebar
+  await expect(collectionRow).not.toBeVisible({ timeout: 15_000 });
+}
+
+/**
  * Run a VS Code command via the Command Palette.
  */
 export async function runCommand(page: Page, command: string): Promise<void> {
