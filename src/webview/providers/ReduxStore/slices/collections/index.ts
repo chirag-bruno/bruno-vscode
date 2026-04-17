@@ -480,6 +480,9 @@ export const collectionsSlice = createSlice({
         const item = findItemInCollection(collection, itemUid);
         if (item && isItemARequest(item)) {
           const draft = ensureDraft(item);
+          if (draft.request) {
+            (draft.request as { url: string }).url = url;
+          }
           if (draft.request && 'params' in draft.request) {
             type ParamType = { uid?: string; name: string; value: string; enabled?: boolean; type?: string };
             const httpRequest = draft.request as { url: string; params: ParamType[] };
@@ -1505,6 +1508,23 @@ export const collectionsSlice = createSlice({
         if (tagsEnabled !== undefined) {
           collection.runnerTagsEnabled = tagsEnabled;
         }
+      }
+    },
+
+    addTransientRequest: (state, action: PayloadAction<{ collectionUid: string; item: any }>) => {
+      const { collectionUid, item } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection) {
+        collection.items = collection.items || [];
+        collection.items.push(item);
+      }
+    },
+
+    removeTransientRequest: (state, action: PayloadAction<{ collectionUid: string; itemUid: string }>) => {
+      const { collectionUid, itemUid } = action.payload;
+      const collection = findCollectionByUid(state.collections, collectionUid);
+      if (collection && collection.items) {
+        collection.items = collection.items.filter((i: any) => i.uid !== itemUid);
       }
     },
 
@@ -2942,6 +2962,8 @@ export const {
   updateCollectionTagsList,
   resetCollectionRunner,
   updateRunnerTagsDetails,
+  addTransientRequest,
+  removeTransientRequest,
   collectionAddFileEvent,
   collectionChangeFileEvent,
   collectionUnlinkFileEvent,

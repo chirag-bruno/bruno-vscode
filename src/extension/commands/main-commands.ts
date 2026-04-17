@@ -267,7 +267,10 @@ export function registerMainCommands(
   // which conflicts with Bruno's IPC-based save mechanism
   context.subscriptions.push(
     vscode.commands.registerCommand('bruno.saveFromEditor', () => {
-      stateManager.broadcast('main:trigger-save');
+      const activeWebview = stateManager.lastActiveEditorWebview;
+      if (activeWebview) {
+        stateManager.sendTo(activeWebview, 'main:trigger-save');
+      }
     })
   );
 }
