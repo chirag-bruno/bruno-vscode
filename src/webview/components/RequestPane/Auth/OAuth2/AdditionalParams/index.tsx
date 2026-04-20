@@ -220,6 +220,7 @@ const AdditionalParams = ({
                     value
                   })}
                   collection={collection}
+                  item={item}
                   onSave={handleSave}
                   isCompact
                 />
@@ -235,6 +236,7 @@ const AdditionalParams = ({
                     value
                   })}
                   collection={collection}
+                  item={item}
                   onSave={handleSave}
                 />
               </td>

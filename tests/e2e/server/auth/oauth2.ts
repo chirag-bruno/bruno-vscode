@@ -152,6 +152,29 @@ router.post('/client_credentials/token', (req: Request, res: Response) => {
   res.json(issueTokens(clientId, scope));
 });
 
+// ─── Client Credentials with required additional param ───────────────────────
+// Requires `audience` in the request body to succeed (validates additional params interpolation)
+
+router.post('/client_credentials/token_with_audience', (req: Request, res: Response) => {
+  const { clientId, clientSecret } = extractClientCredentials(req);
+  const { grant_type, scope, audience } = req.body;
+
+  if (grant_type !== 'client_credentials') {
+    res.status(400).json({ error: 'invalid_grant', error_description: 'Expected grant_type=client_credentials' });
+    return;
+  }
+  if (!clientId || !validateClient(clientId, clientSecret)) {
+    res.status(401).json({ error: 'invalid_client', error_description: 'Invalid client credentials' });
+    return;
+  }
+  if (audience !== 'my-api') {
+    res.status(400).json({ error: 'invalid_request', error_description: `Expected audience=my-api, got ${audience}` });
+    return;
+  }
+
+  res.json(issueTokens(clientId, scope));
+});
+
 // ─── Password Credentials ────────────────────────────────────────────────────
 
 router.post('/password_credentials/token', (req: Request, res: Response) => {
