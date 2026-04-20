@@ -292,6 +292,49 @@ test.describe('OAuth2 Authentication', () => {
     await sendRequest(currentEditor, 200);
   });
 
+  test('Interpolation: OAuth2 additional parameters with {{variables}} resolve correctly', async ({ page, tmpDir }) => {
+    const sidebar = await openBrunoSidebar(page);
+    const fixturePath = path.resolve(__dirname, '../fixtures/oauth2-additional-params-collection.json');
+
+    // Import the collection that has {{myAudience}} in additionalParameters.token
+    // The server endpoint requires audience=my-api in the body to succeed
+    await importCollection(page, sidebar, fixturePath, tmpDir, 'OAuth2 Additional Params');
+
+    // Open the request
+    const editor = await openRequest(page, sidebar, 'OAuth2 Additional Params', 'Get Resource With Additional Params');
+
+    // Switch to Auth tab — OAuth2 should already be configured from the fixture
+    const authTab = editor.locator('[role="tab"]').filter({ hasText: 'Auth' });
+    await expect(authTab).toBeVisible({ timeout: 10_000 });
+    await authTab.click();
+    await expect(editor.locator('[data-testid="oauth2-get-token-btn"]')).toBeVisible({ timeout: 10_000 });
+
+    // Verify the {{myAudience}} variable in additional params is highlighted as valid (green, not red)
+    const additionalParamsSection = editor.locator('.oauth2-additional-params-wrapper');
+    await expect(additionalParamsSection).toBeVisible({ timeout: 5_000 });
+    // Click the "Token" tab to reveal the additional param
+    await additionalParamsSection.locator('.tab').filter({ hasText: 'Token' }).click();
+    // The variable should be rendered with cm-variable-valid (green), not cm-variable-invalid (red)
+    await expect(additionalParamsSection.locator('span.cm-variable-valid')).toBeVisible({ timeout: 5_000 });
+    await expect(additionalParamsSection.locator('span.cm-variable-invalid')).toHaveCount(0);
+
+    // Click "Get Access Token" — this triggers the manual fetch path which must
+    // interpolate {{myAudience}} → "my-api" in the additional parameter before
+    // sending it to the token endpoint
+    const getTokenBtn = editor.locator('[data-testid="oauth2-get-token-btn"]');
+    await expect(getTokenBtn).toBeEnabled({ timeout: 5_000 });
+    await getTokenBtn.click();
+
+    // Verify token was fetched (interpolation of additional params worked)
+    // If interpolation failed, the server returns 400 and no token appears
+    await expect(editor.locator('[data-testid="oauth2-token-title"]').first()).toBeVisible({ timeout: 15_000 });
+    await expect(getTokenBtn).toBeEnabled({ timeout: 5_000 });
+
+    // Send authenticated request — verifies the token is valid
+    const currentEditor = await getActiveEditorFrame(page, editor);
+    await sendRequest(currentEditor, 200);
+  });
+
   // ─── Validation ──────────────────────────────────────────────────────
 
   test('Validation: missing Client ID shows error toast', async ({ page, tmpDir }) => {

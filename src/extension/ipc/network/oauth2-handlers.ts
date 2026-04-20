@@ -136,6 +136,27 @@ function interpolateOAuth2Config(
       oauth2[field] = (interpolate as (str: string, vars: Record<string, unknown>) => string)(oauth2[field] as string, vars);
     }
   }
+  
+  // Interpolate additional parameters (authorization, token, refresh)
+  const additionalParameters = oauth2.additionalParameters as Record<string, unknown> | undefined;
+  if (additionalParameters){
+    ['authorization', 'token', 'refresh'].forEach((key) => {
+      const params = additionalParameters[key];
+      if (Array.isArray(params)) {
+      params.forEach((param) => {
+        if (param?.enabled){
+          if (typeof param.name === 'string' && param.name.includes('{{')) {
+              param.name = (interpolate as (str: string, vars: Record<string, unknown>) => string)(param.name, vars);
+            }
+            if (typeof param.value === 'string' && param.value.includes('{{')) {
+              param.value = (interpolate as (str: string, vars: Record<string, unknown>) => string)(param.value, vars);
+            }
+        }
+      })
+      }
+    })
+  }
+
 
   // Write back interpolated config to both locations
   if ((requestCopy.auth as { oauth2?: Record<string, unknown> })?.oauth2) {
