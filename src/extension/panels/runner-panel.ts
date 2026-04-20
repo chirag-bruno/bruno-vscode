@@ -75,6 +75,15 @@ export async function openRunnerPanel(
     stateManager.broadcast(channel, ...args);
   };
 
+  const collectionUid = generateUidBasedOnHash(collectionRoot);
+
+  const viewData = {
+    viewType: 'collection-runner',
+    collectionUid,
+    collectionPath: collectionRoot,
+    folderUid
+  };
+
   let collectionLoaded = false;
 
   const loadCollection = async () => {
@@ -91,9 +100,6 @@ export async function openRunnerPanel(
       // Always call openCollection to send collection metadata
       await openCollection(collectionWatcher, collectionRoot);
 
-      const collectionUid = generateUidBasedOnHash(collectionRoot);
-
-      await new Promise(resolve => setTimeout(resolve, 300));
       await collectionWatcher.loadEnvironments(collectionRoot, collectionUid, webviewSender);
 
       // If watcher already existed, openCollection won't trigger a scan
@@ -115,14 +121,7 @@ export async function openRunnerPanel(
         stateManager.sendTo(panel.webview, 'main:hydrate-app-with-ui-state-snapshot', collectionSnapshotState);
       }
 
-      setTimeout(() => {
-        stateManager.sendTo(panel.webview, 'main:set-view', {
-          viewType: 'collection-runner',
-          collectionUid,
-          collectionPath: collectionRoot,
-          folderUid
-        });
-      }, 500);
+      stateManager.sendTo(panel.webview, 'main:set-view', viewData);
     } catch (error) {
       console.error('RunnerPanel: Error opening collection:', error);
       setCollectionsMessageSender(originalBroadcastSender);
@@ -135,28 +134,22 @@ export async function openRunnerPanel(
       try {
         setCurrentWebview(panel.webview);
 
-        if (message.channel === 'renderer:ready') {
-          const result = await handleInvoke(message.channel, message.args || []);
-
-          panel.webview.postMessage({
-            type: 'response',
-            requestId: message.requestId,
-            result
-          });
-
-          clearCurrentWebview();
-          await loadCollection();
-          return;
-        }
-
         const result = await handleInvoke(message.channel, message.args || []);
-        clearCurrentWebview();
 
         panel.webview.postMessage({
           type: 'response',
           requestId: message.requestId,
           result
         });
+
+        if (message.channel === 'renderer:ready') {
+          // Re-send as fallback in case the proactive send was missed
+          stateManager.sendTo(panel.webview, 'main:set-view', viewData);
+          clearCurrentWebview();
+          return;
+        }
+
+        clearCurrentWebview();
       } catch (error) {
         clearCurrentWebview();
         panel.webview.postMessage({
@@ -169,6 +162,10 @@ export async function openRunnerPanel(
       handleIpcSend(message.channel, message.args || []);
     }
   });
+
+  // Start collection loading immediately in parallel with webview initialization.
+  // Events are buffered by the IPC event queue and replayed when React mounts.
+  loadCollection();
 }
 
 export function getActiveRunnerPanel(collectionRoot: string): vscode.WebviewPanel | undefined {
