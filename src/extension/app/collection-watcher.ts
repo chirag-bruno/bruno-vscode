@@ -1615,14 +1615,25 @@ class CollectionWatcher {
   }
 
   removeWatcher(watchPath: string, collectionUid?: string): void {
-    if (this.watchers.has(watchPath)) {
-      const watchers = this.watchers.get(watchPath)!;
+    // The Map key may have been stored with posixified separators (opened from webview)
+    // or native separators (opened from file dialog). Try both formats.
+    const nativePath = path.resolve(watchPath);
+    const posixPath = posixifyPath(nativePath);
+    const effectivePath = this.watchers.has(nativePath) ? nativePath
+      : this.watchers.has(posixPath) ? posixPath
+      : watchPath;
+
+    if (this.watchers.has(effectivePath)) {
+      const watchers = this.watchers.get(effectivePath)!;
       watchers.forEach(w => w.dispose());
-      this.watchers.delete(watchPath);
+      this.watchers.delete(effectivePath);
     }
 
-    this.pathToCollectionUid.delete(watchPath);
-    this.scannedCollections.delete(watchPath);
+    // Clean up all possible key formats
+    this.pathToCollectionUid.delete(nativePath);
+    this.pathToCollectionUid.delete(posixPath);
+    this.scannedCollections.delete(nativePath);
+    this.scannedCollections.delete(posixPath);
 
     if (collectionUid) {
       this.cleanupLoadingState(collectionUid);
