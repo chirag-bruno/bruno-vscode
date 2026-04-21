@@ -1,3 +1,4 @@
+import path from 'path';
 import * as vscode from 'vscode';
 import { each, find, remove } from 'lodash';
 import { encryptStringSafe } from '../utils/encryption';
@@ -60,7 +61,7 @@ class EnvironmentSecretsStore {
     });
 
     const collections = this.getCollections();
-    const collection = find(collections, (c) => c.path === collectionPathname);
+    const collection = find(collections, (c) => path.resolve(c.path) === path.resolve(collectionPathname));
 
     if (!collection) {
       collections.push({
@@ -93,7 +94,7 @@ class EnvironmentSecretsStore {
 
   getEnvSecrets(collectionPathname: string, environment: { name?: string }): Secret[] {
     const collections = this.getCollections();
-    const collection = find(collections, (c) => c.path === collectionPathname);
+    const collection = find(collections, (c) => path.resolve(c.path) === path.resolve(collectionPathname));
     if (!collection) {
       return [];
     }
@@ -108,7 +109,7 @@ class EnvironmentSecretsStore {
 
   renameEnvironment(collectionPathname: string, oldName: string, newName: string): void {
     const collections = this.getCollections();
-    const collection = find(collections, (c) => c.path === collectionPathname);
+    const collection = find(collections, (c) => path.resolve(c.path) === path.resolve(collectionPathname));
     if (!collection) {
       return;
     }
@@ -124,7 +125,7 @@ class EnvironmentSecretsStore {
 
   deleteEnvironment(collectionPathname: string, environmentName: string): void {
     const collections = this.getCollections();
-    const collection = find(collections, (c) => c.path === collectionPathname);
+    const collection = find(collections, (c) => path.resolve(c.path) === path.resolve(collectionPathname));
     if (!collection) {
       return;
     }
