@@ -82,7 +82,9 @@ export function registerOAuth2Handlers(): void {
 
   // Cancel pending browser authorization
   registerHandler('renderer:cancel-oauth2-authorization-request', async () => {
+    const wasInProgress = isAuthorizationInProgress();
     cancelAuthorization();
+    return { success: true, cancelled: wasInProgress };
   });
 }
 
