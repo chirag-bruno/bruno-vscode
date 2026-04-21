@@ -21,7 +21,8 @@ import {
   scriptEnvironmentUpdateEvent,
   streamDataReceived,
   addTransientRequest,
-  removeTransientRequest
+  removeTransientRequest,
+  updateCollectionTagsList
 } from 'providers/ReduxStore/slices/collections';
 import {
   collectionAddEnvFileEvent,
@@ -122,6 +123,10 @@ const useIpcEvents = () => {
       }
       if (type === 'change') {
         dispatch(collectionChangeFileEvent(val as CollectionChangeFileEventPayload));
+        const changeMeta = (val as CollectionChangeFileEventPayload)?.meta;
+        if (changeMeta?.collectionUid) {
+          dispatch(updateCollectionTagsList({ collectionUid: changeMeta.collectionUid }));
+        }
       }
       if (type === 'unlink') {
         setTimeout(() => {
