@@ -14,7 +14,9 @@
   "bugs": {
     "url": "https://github.com/usebruno/bruno/issues"
   },
-  "extensionKind": ["workspace"],
+  "extensionKind": [
+    "workspace"
+  ],
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -463,9 +465,9 @@
     "@tippyjs/react": "^4.2.6",
     "@usebruno/common": "0.18.0",
     "@usebruno/converters": "0.17.1",
-    "@usebruno/filestore": "0.7.1",
+    "@usebruno/filestore": "0.8.1",
     "@usebruno/js": "0.46.1",
-    "@usebruno/lang": "0.34.0",
+    "@usebruno/lang": "0.35.0",
     "@usebruno/requests": "0.15.2",
     "@usebruno/schema": "0.23.0",
     "@usebruno/vm2": "3.9.19",

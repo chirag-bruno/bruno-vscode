@@ -1972,7 +1972,15 @@ get {
     }
 
     const format = getCollectionFormat(collectionPath);
-    const requestFiles = searchForRequestFiles(collectionPath, collectionPath);
+    const allFiles = searchForRequestFiles(collectionPath, collectionPath);
+    const requestFiles = allFiles.filter((filePath) => {
+      const basename = path.basename(filePath);
+      if (basename === 'folder.bru' || basename === 'folder.yml') return false;
+      if (basename === 'collection.bru' || basename === 'opencollection.yml') return false;
+      if (basename === 'bruno.json') return false;
+      if (path.basename(path.dirname(filePath)) === 'environments') return false;
+      return true;
+    });
 
     const PARSE_PARALLELISM = 20;
 
@@ -2013,6 +2021,15 @@ get {
     const [{ collectionUid, pathname }] = args as [{ collectionUid: string; pathname: string }];
 
     if (!hasRequestExtension(pathname)) {
+      return;
+    }
+
+    const basename = path.basename(pathname);
+    if (basename === 'folder.bru' || basename === 'folder.yml' ||
+        basename === 'collection.bru' || basename === 'opencollection.yml') {
+      return;
+    }
+    if (path.basename(path.dirname(pathname)) === 'environments') {
       return;
     }
 
