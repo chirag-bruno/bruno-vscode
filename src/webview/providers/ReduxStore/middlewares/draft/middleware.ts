@@ -2,6 +2,7 @@ import React from 'react';
 import { handleMakeTabParmanent } from './utils';
 import { findCollectionByUid, findItemInCollection } from 'utils/collections';
 import { hasRequestChanges }from 'utils/collections';
+import { updateCollectionTagsList } from '../../slices/collections';
 
 interface actionsToInterceptProps {
   dispatch?: boolean;
@@ -52,6 +53,8 @@ const actionsToIntercept = [
   'collections/moveVar',
   'collections/setRequestVars',
   'collections/updateRequestDocs',
+  'collections/addRequestTag',
+  'collections/deleteRequestTag',
   'collections/runRequestEvent', // TODO: This doesn't necessarily related to a draft state, need to rethink.
 
   'collections/addFolderHeader',
@@ -120,6 +123,13 @@ export const draftDetectMiddleware = ({
       const item = collection ? findItemInCollection(collection, itemUid) : null;
       if ((item as any)?.isTransient) {
         scheduleTransientSync(item);
+      }
+    }
+
+    if (action.type === 'collections/addRequestTag' || action.type === 'collections/deleteRequestTag') {
+      const { collectionUid } = action.payload || {};
+      if (collectionUid) {
+        dispatch(updateCollectionTagsList({ collectionUid }));
       }
     }
   }

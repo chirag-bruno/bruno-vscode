@@ -1465,15 +1465,10 @@ export const collectionsSlice = createSlice({
       if (collection) {
         const item = findItemInCollection(collection, itemUid);
         if (item) {
-          if (!item.tags) item.tags = [];
-          if (!item.tags.includes(tag)) {
-            item.tags.push(tag);
-          }
-          if (item.draft) {
-            if (!item.draft.tags) item.draft.tags = [];
-            if (!item.draft.tags.includes(tag)) {
-              item.draft.tags.push(tag);
-            }
+          const draft = ensureDraft(item);
+          if (!draft.tags) draft.tags = [];
+          if (!draft.tags.includes(tag)) {
+            draft.tags.push(tag);
           }
         }
       }
@@ -1485,11 +1480,9 @@ export const collectionsSlice = createSlice({
       if (collection) {
         const item = findItemInCollection(collection, itemUid);
         if (item) {
-          if (item.tags) {
-            item.tags = item.tags.filter(t => t !== tag);
-          }
-          if (item.draft?.tags) {
-            item.draft.tags = item.draft.tags.filter(t => t !== tag);
+          const draft = ensureDraft(item);
+          if (draft.tags) {
+            draft.tags = draft.tags.filter(t => t !== tag);
           }
         }
       }
