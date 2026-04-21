@@ -1,3 +1,4 @@
+import path from 'path';
 import * as vscode from 'vscode';
 import { find } from 'lodash';
 
@@ -35,7 +36,7 @@ class CollectionSecurityStore {
 
   setSecurityConfigForCollection(collectionPathname: string, securityConfig: SecurityConfig): void {
     const collections = this.getCollections();
-    const collection = find(collections, (c) => c.path === collectionPathname);
+    const collection = find(collections, (c) => path.resolve(c.path) === path.resolve(collectionPathname));
 
     if (!collection) {
       collections.push({
@@ -54,7 +55,7 @@ class CollectionSecurityStore {
 
   getSecurityConfigForCollection(collectionPathname: string): SecurityConfig {
     const collections = this.getCollections();
-    const collection = find(collections, (c) => c.path === collectionPathname);
+    const collection = find(collections, (c) => path.resolve(c.path) === path.resolve(collectionPathname));
     return collection?.securityConfig || {};
   }
 }
