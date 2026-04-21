@@ -331,10 +331,12 @@ const registerCollectionIpc = (watcher: CollectionWatcherInterface): void => {
     const [collectionPath] = args as [string];
 
     try {
-      watcher.removeWatcher(collectionPath);
+      // Paths from the webview are posixified; resolve to native for watcher/store lookups
+      const nativePath = path.resolve(collectionPath);
+      watcher.removeWatcher(nativePath);
 
       const lastOpenedStore = new LastOpenedCollections();
-      lastOpenedStore.remove(collectionPath);
+      lastOpenedStore.remove(nativePath);
 
       return { success: true };
     } catch (error) {
@@ -346,10 +348,12 @@ const registerCollectionIpc = (watcher: CollectionWatcherInterface): void => {
     const [collectionPath, _collectionUid, workspaceId] = args as [string, string, string];
 
     try {
-      watcher.removeWatcher(collectionPath);
+      // Paths from the webview are posixified; resolve to native for watcher/store/fs lookups
+      const nativePath = path.resolve(collectionPath);
+      watcher.removeWatcher(nativePath);
 
       const lastOpenedStore = new LastOpenedCollections();
-      lastOpenedStore.remove(collectionPath);
+      lastOpenedStore.remove(nativePath);
 
       let workspacePath: string | null = null;
       if (workspaceId === 'default' || !workspaceId) {
@@ -360,7 +364,7 @@ const registerCollectionIpc = (watcher: CollectionWatcherInterface): void => {
 
       if (workspacePath) {
         try {
-          const result = await removeFromWorkspaceYml(workspacePath, collectionPath);
+          const result = await removeFromWorkspaceYml(workspacePath, nativePath);
           // Use defaultWorkspaceManager UID ('default') to match what Redux expects
           const wsUid = (workspaceId === 'default' || !workspaceId)
             ? defaultWorkspaceManager.getDefaultWorkspaceUid()
@@ -1538,12 +1542,14 @@ const registerCollectionIpc = (watcher: CollectionWatcherInterface): void => {
     const [collectionUid, collectionPath] = args as [string, string];
 
     try {
+      // Paths from the webview are posixified; resolve to native for watcher/store lookups
+      const nativePath = path.resolve(collectionPath);
       if (watcher && collectionPath) {
-        watcher.removeWatcher(collectionPath, collectionUid);
+        watcher.removeWatcher(nativePath, collectionUid);
       }
 
       const lastOpenedStore = new LastOpenedCollections();
-      lastOpenedStore.remove(collectionPath);
+      lastOpenedStore.remove(nativePath);
 
       sendToWebview('main:collection-closed', collectionUid);
 

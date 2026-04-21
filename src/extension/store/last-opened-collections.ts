@@ -45,10 +45,13 @@ class LastOpenedCollections {
   }
 
   remove(collectionPath: string): void {
+    // path.resolve normalizes posixified paths (from webview) to native separators
+    // so they match the resolved paths returned by getAll()
+    const resolved = path.resolve(collectionPath);
     let collections = this.getAll();
 
-    if (collections.includes(collectionPath)) {
-      collections = filter(collections, (c) => c !== collectionPath);
+    if (collections.includes(resolved)) {
+      collections = filter(collections, (c) => c !== resolved);
       this.setInStorage('lastOpenedCollections', collections);
     }
   }
