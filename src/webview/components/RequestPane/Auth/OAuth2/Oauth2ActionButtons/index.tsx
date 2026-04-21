@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { cloneDeep, find } from 'lodash';
 import { IconX } from '@tabler/icons';
 import { interpolate } from '@usebruno/common';
-import { fetchOauth2Credentials, clearOauth2Cache, refreshOauth2Credentials, cancelOauth2AuthorizationRequest, isOauth2AuthorizationRequestInProgress } from 'providers/ReduxStore/slices/collections/actions';
+import { fetchOauth2Credentials, clearOauth2Cache, refreshOauth2Credentials, cancelOauth2AuthorizationRequest } from 'providers/ReduxStore/slices/collections/actions';
 import { getAllVariables } from 'utils/collections/index';
 import Button from 'ui/Button';
 import type { AppCollection, AppItem, OAuth2CredentialEntry } from '@bruno-types';
@@ -29,21 +29,9 @@ const Oauth2ActionButtons = ({
   const dispatch = useDispatch();
   const [fetchingToken, toggleFetchingToken] = useState(false);
   const [refreshingToken, toggleRefreshingToken] = useState(false);
-  const [fetchingAuthorizationCode, toggleFetchingAuthorizationCode] = useState(false);
-
-  useEffect(() => {
-    if (fetchingToken) {
-      const getRequestStatus = async () => {
-        try {
-          const inProgress = await (dispatch(isOauth2AuthorizationRequestInProgress()) as unknown as Promise<boolean>);
-          toggleFetchingAuthorizationCode(inProgress);
-        } catch (err) {
-          console.error('Error checking pending authorization:', err);
-        }
-      };
-      getRequestStatus();
-    }
-  }, [fetchingToken, dispatch]);
+  const oauth2Config = (request as any)?.auth?.oauth2 || {};
+  const isBrowserFlow = oauth2Config.grantType === 'authorization_code' || oauth2Config.grantType === 'implicit';
+  const showCancelButton = fetchingToken && isBrowserFlow;
 
   const allVariables = useMemo(() => getAllVariables(collection, item), [collection, item]);
 
@@ -91,7 +79,6 @@ const Oauth2ActionButtons = ({
       toast.error(err?.message || 'An error occurred while fetching token!');
     } finally {
       toggleFetchingToken(false);
-      toggleFetchingAuthorizationCode(false);
     }
   };
 
@@ -140,12 +127,9 @@ const Oauth2ActionButtons = ({
 
   const handleCancelAuthorization = async () => {
     try {
-      const result = await (dispatch(cancelOauth2AuthorizationRequest()) as unknown as Promise<{ success?: boolean; cancelled?: boolean }>);
-      if (result.success && result.cancelled) {
-        toast.error('Authorization cancelled');
-        toggleFetchingToken(false);
-        toggleFetchingAuthorizationCode(false);
-      }
+      await (dispatch(cancelOauth2AuthorizationRequest()) as unknown as Promise<{ success?: boolean; cancelled?: boolean }>);
+      toast.error('Authorization cancelled');
+      toggleFetchingToken(false);
     } catch (err) {
       console.error('Error cancelling authorization:', err);
       toast.error('Failed to cancel authorization');
@@ -178,7 +162,7 @@ const Oauth2ActionButtons = ({
             </Button>
           )
         : null}
-      {fetchingAuthorizationCode
+      {showCancelButton
         ? (
             <Button
               size="sm"

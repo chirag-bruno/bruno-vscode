@@ -129,7 +129,7 @@ interface ImplicitFlowOptions {
 
 export async function getOAuth2AuthorizationCode(options: AuthorizationCodeOptions): Promise<AuthorizationResult> {
   if (isAuthorizationInProgress()) {
-    throw new Error('An OAuth2 authorization request is already in progress');
+    cancelAuthorization();
   }
 
   const { authorizationUrl, callbackUrl, clientId, scope, state, pkce, codeChallenge, additionalParameters } = options;
@@ -166,7 +166,7 @@ export async function getOAuth2AuthorizationCode(options: AuthorizationCodeOptio
 
 export async function getOAuth2ImplicitToken(options: ImplicitFlowOptions): Promise<AuthorizationResult> {
   if (isAuthorizationInProgress()) {
-    throw new Error('An OAuth2 authorization request is already in progress');
+    cancelAuthorization();
   }
 
   const { authorizationUrl, callbackUrl, clientId, scope, state, additionalParameters } = options;
