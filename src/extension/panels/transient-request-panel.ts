@@ -36,6 +36,8 @@ const transientPanels = new Map<string, vscode.WebviewPanel>();
 // Store transient item data so we can forward it to new panels
 const transientItems = new Map<string, Record<string, unknown>>();
 
+const savedPanels = new Set<string>();
+
 export function storeTransientItem(itemUid: string, item: Record<string, unknown>): void {
   transientItems.set(itemUid, item);
 }
@@ -83,6 +85,15 @@ export async function openTransientRequestPanel(
   });
 
   panel.onDidDispose(() => {
+    if (savedPanels.has(itemUid)) {
+      savedPanels.delete(itemUid);
+      stateManager.removeWebview(panel.webview);
+      transientPanels.delete(itemUid);
+      transientItems.delete(itemUid);
+      stateManager.broadcast('main:transient-request-closed', { collectionUid, itemUid });
+      return;
+    }
+
     const GRACE_MS = 10_000;
 
     const timer = setTimeout(() => {
@@ -309,7 +320,7 @@ async function saveTransientRequest(
     const content = await stringifyRequestViaWorker({ ...itemData, name, filename }, { format });
     fs.writeFileSync(fullPath, content, 'utf-8');
 
-    // Close the transient panel
+    savedPanels.add(itemUid);
     panel.dispose();
 
     // Open the saved file in the regular editor

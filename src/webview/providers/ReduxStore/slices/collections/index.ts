@@ -1633,7 +1633,7 @@ export const collectionsSlice = createSlice({
         currentSubItems = childItem.items;
       }
 
-      if (meta.name !== 'folder.bru' && !currentSubItems.find((f) => f.name === data?.name)) {
+      if (meta.name !== 'folder.bru' && !currentSubItems.find((f) => f.name === data?.name && !f.isTransient)) {
         const currentItem = find(currentSubItems, (i) => i.uid === data?.uid);
         if (currentItem) {
           // Preserve existing draft and response if they exist (don't overwrite unsaved changes)
@@ -1762,7 +1762,7 @@ export const collectionsSlice = createSlice({
           currentSubItems = childItem.items;
         }
 
-        if (meta.name !== 'folder.bru' && !currentSubItems.find((f) => f.name === data?.name)) {
+        if (meta.name !== 'folder.bru' && !currentSubItems.find((f) => f.name === data?.name && !f.isTransient)) {
           const currentItem = find(currentSubItems, (i) => i.uid === data?.uid);
           if (currentItem) {
             const existingDraft = currentItem.draft;
