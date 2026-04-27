@@ -2714,9 +2714,9 @@ export const collectionsSlice = createSlice({
         ...(type === 'response' ? { local } : {})
       }));
       if (type === 'request') {
-        set(folder, 'draft.request.vars.req', mappedVars);
+        set(folder, 'draft.root.request.vars.req', mappedVars);
       } else if (type === 'response') {
-        set(folder, 'draft.request.vars.res', mappedVars);
+        set(folder, 'draft.root.request.vars.res', mappedVars);
       }
     },
 
