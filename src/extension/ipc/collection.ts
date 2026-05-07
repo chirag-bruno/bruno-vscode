@@ -784,6 +784,9 @@ const registerCollectionIpc = (watcher: CollectionWatcherInterface): void => {
       }
 
       validatePathIsInsideCollection(sourcePathname);
+      const sourceIsDirectory = fs.statSync(sourcePathname).isDirectory();
+      const collectionPath = findCollectionPathByItemPath(sourcePathname);
+      const collectionUid = collectionPath ? generateUidBasedOnHash(collectionPath) : null;
 
       const sourceDirname = path.dirname(sourcePathname);
       const pathnamesBefore = await getPaths(sourcePathname);
@@ -794,6 +797,12 @@ const registerCollectionIpc = (watcher: CollectionWatcherInterface): void => {
       pathnamesAfter?.forEach((_, index) => {
         moveRequestUid(pathnamesBefore[index], pathnamesAfter[index]);
       });
+      if (sourceIsDirectory && collectionUid) {
+        broadcastToAllWebviews('main:collection-tree-updated', 'unlinkDir', {
+          directory: { pathname: posixifyPath(sourcePathname) },
+          meta: { collectionUid }
+        });
+      }
 
       return { success: true };
     } catch (error) {
