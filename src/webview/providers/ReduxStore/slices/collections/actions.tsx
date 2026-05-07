@@ -1041,9 +1041,6 @@ export const cloneItem = (newName: string, newFilename: string, itemUid: string,
 
     const parentItem = findParentItemInCollection(collectionCopy, itemUid);
     const filename = resolveRequestFilename(newFilename, collection.format);
-    const itemToSave = refreshUidsInItem(transformRequestToSaveToFilesystem(item));
-    set(itemToSave, 'name', trim(newName));
-    set(itemToSave, 'filename', trim(filename));
     if (!parentItem) {
       const reqWithSameNameExists = find(
         collection.items,
@@ -1053,11 +1050,9 @@ export const cloneItem = (newName: string, newFilename: string, itemUid: string,
         const fullPathname = path.join(collection.pathname, filename);
         const { ipcRenderer } = window;
         const requestItems = filter(collection.items, (i) => i.type !== 'folder');
-        itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
+        const newSeq = requestItems ? requestItems.length + 1 : 1;
 
-        itemSchema
-          .validate(itemToSave)
-          .then(() => ipcRenderer.invoke('renderer:new-request', fullPathname, itemToSave))
+        ipcRenderer.invoke('renderer:clone-request', item.pathname, fullPathname, trim(newName), newSeq)
           .then(resolve)
           .catch(reject);
 
@@ -1082,11 +1077,9 @@ export const cloneItem = (newName: string, newFilename: string, itemUid: string,
         const fullName = path.join(dirname, filename);
         const { ipcRenderer } = window;
         const requestItems = filter(parentItem.items, (i) => i.type !== 'folder');
-        itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
+        const newSeq = requestItems ? requestItems.length + 1 : 1;
 
-        itemSchema
-          .validate(itemToSave)
-          .then(() => ipcRenderer.invoke('renderer:new-request', fullName, itemToSave))
+        ipcRenderer.invoke('renderer:clone-request', item.pathname, fullName, trim(newName), newSeq)
           .then(resolve)
           .catch(reject);
 
@@ -1159,17 +1152,12 @@ export const pasteItem = (targetCollectionUid: string, targetItemUid: string | n
           const { newName, newFilename } = generateUniqueName(copiedItem.name, existingItems, false);
 
           const filename = resolveRequestFilename(newFilename, targetCollection.format);
-          const itemToSave = refreshUidsInItem(transformRequestToSaveToFilesystem(copiedItem));
-          set(itemToSave, 'name', trim(newName));
-          set(itemToSave, 'filename', trim(filename));
-
           const fullPathname = path.join(targetParentPathname, filename);
           const { ipcRenderer } = window;
           const requestItems = filter(existingItems, (i) => i.type !== 'folder');
-          itemToSave.seq = requestItems ? requestItems.length + 1 : 1;
+          const newSeq = requestItems ? requestItems.length + 1 : 1;
 
-          await itemSchema.validate(itemToSave);
-          await ipcRenderer.invoke('renderer:new-request', fullPathname, itemToSave, targetCollection.format);
+          await ipcRenderer.invoke('renderer:clone-request', copiedItem.pathname, fullPathname, trim(newName), newSeq);
 
           dispatch(insertTaskIntoQueue({
             uid: uuid(),

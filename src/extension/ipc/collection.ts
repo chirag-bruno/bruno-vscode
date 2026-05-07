@@ -847,6 +847,38 @@ const registerCollectionIpc = (watcher: CollectionWatcherInterface): void => {
     }
   });
 
+  registerHandler('renderer:clone-request', async (args) => {
+    const [sourcePathname, destPathname, newName, newSeq] = args as [string, string, string, number];
+
+    try {
+      if (!fs.existsSync(sourcePathname)) {
+        throw new Error(`source: ${sourcePathname} does not exist`);
+      }
+      if (fs.existsSync(destPathname)) {
+        throw new Error(`destination: ${destPathname} already exists`);
+      }
+
+      const collectionPath = findCollectionPathByItemPath(sourcePathname);
+      if (!collectionPath) {
+        throw new Error('Collection not found for the given pathname');
+      }
+
+      const format = getCollectionFormat(collectionPath);
+      const content = fs.readFileSync(sourcePathname, 'utf8');
+      const parsed = await parseRequest(content, { format });
+
+      parsed.name = newName;
+      parsed.seq = newSeq;
+
+      const newContent = await stringifyRequest(parsed, { format });
+      await writeFile(destPathname, newContent);
+
+      return { success: true };
+    } catch (error) {
+      throw error;
+    }
+  });
+
   registerHandler('renderer:copy-item', async (args) => {
     const [sourcePath, destinationPath] = args as [string, string];
 
