@@ -4,21 +4,11 @@ import { useDispatch } from 'react-redux';
 import { useTheme } from 'providers/Theme';
 import { setFolderHeaders } from 'providers/ReduxStore/slices/collections';
 import { saveFolderRoot } from 'providers/ReduxStore/slices/collections/actions';
-import SingleLineEditor from 'components/SingleLineEditor';
 import EditableTable from 'components/EditableTable';
+import HeaderEditor, { getHeaderRowError } from 'components/HeaderEditor';
 import StyledWrapper from './StyledWrapper';
-import { headers as StandardHTTPHeaders } from 'know-your-http-well';
-import { MimeTypes } from 'utils/codemirror/autocompleteConstants';
 import BulkEditor from 'components/BulkEditor/index';
 import Button from 'ui/Button';
-
-interface headerAutoCompleteListProps {
-  collection?: React.ReactNode;
-  folder: React.ReactNode;
-}
-
-
-const headerAutoCompleteList = StandardHTTPHeaders.map((e: any) => e.header);
 
 const Headers = ({
   collection,
@@ -52,43 +42,20 @@ const Headers = ({
       isKeyField: true,
       placeholder: 'Name',
       width: '30%',
-      render: ({
-        row,
-        value,
-        onChange,
-        isLastEmptyRow
-      }: any) => (
-        <SingleLineEditor
-          value={value || ''}
-          theme={storedTheme}
-          onSave={handleSave}
-          onChange={(newValue: any) => onChange(newValue.replace(/[\r\n]/g, ''))}
-          autocomplete={headerAutoCompleteList}
-          collection={collection}
-          placeholder={isLastEmptyRow ? 'Name' : ''}
-        />
+      render: ({ row, value, onChange, isLastEmptyRow }: any) => (
+        <HeaderEditor type="name" value={value} theme={storedTheme} onSave={handleSave} onChange={onChange}
+          collection={collection} rowUid={row.uid} isLastEmptyRow={isLastEmptyRow}
+          placeholder={isLastEmptyRow ? 'Name' : ''} />
       )
     },
     {
       key: 'value',
       name: 'Value',
       placeholder: 'Value',
-      render: ({
-        row,
-        value,
-        onChange,
-        isLastEmptyRow
-      }: any) => (
-        <SingleLineEditor
-          value={value || ''}
-          theme={storedTheme}
-          onSave={handleSave}
-          onChange={onChange}
-          collection={collection}
-          item={folder}
-          autocomplete={MimeTypes}
-          placeholder={isLastEmptyRow ? 'Value' : ''}
-        />
+      render: ({ row, value, onChange, isLastEmptyRow }: any) => (
+        <HeaderEditor type="value" value={value} theme={storedTheme} onSave={handleSave} onChange={onChange}
+          collection={collection} item={folder} rowUid={row.uid} isLastEmptyRow={isLastEmptyRow}
+          placeholder={isLastEmptyRow ? 'Value' : ''} />
       )
     }
   ];
@@ -125,6 +92,7 @@ const Headers = ({
         rows={headers}
         onChange={handleHeadersChange}
         defaultRow={defaultRow}
+        getRowError={getHeaderRowError}
       />
       <div className="flex justify-end mt-2">
         <button className="text-link select-none" onClick={toggleBulkEditMode}>

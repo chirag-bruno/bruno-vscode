@@ -4,21 +4,10 @@ import { useDispatch } from 'react-redux';
 import { useTheme } from 'providers/Theme';
 import { moveRequestHeader, setRequestHeaders } from 'providers/ReduxStore/slices/collections';
 import { sendRequest, saveRequest } from 'providers/ReduxStore/slices/collections/actions';
-import SingleLineEditor from 'components/SingleLineEditor';
 import EditableTable from 'components/EditableTable';
+import HeaderEditor, { getHeaderRowError } from 'components/HeaderEditor';
 import StyledWrapper from './StyledWrapper';
-import { headers as StandardHTTPHeaders } from 'know-your-http-well';
-import { MimeTypes } from 'utils/codemirror/autocompleteConstants';
 import BulkEditor from '../../BulkEditor';
-
-interface headerAutoCompleteListProps {
-  item?: React.ReactNode;
-  collection?: React.ReactNode;
-  addHeaderText?: unknown;
-}
-
-
-const headerAutoCompleteList = StandardHTTPHeaders.map((e: any) => e.header);
 
 const RequestHeaders = ({
   item,
@@ -62,46 +51,20 @@ const RequestHeaders = ({
       isKeyField: true,
       placeholder: 'Name',
       width: '30%',
-      render: ({
-        row,
-        value,
-        onChange,
-        isLastEmptyRow
-      }: any) => (
-        <SingleLineEditor
-          value={value || ''}
-          theme={storedTheme}
-          onSave={onSave}
-          onChange={(newValue: any) => onChange(newValue.replace(/[\r\n]/g, ''))}
-          autocomplete={headerAutoCompleteList}
-          onRun={handleRun}
-          collection={collection}
-          item={item}
-          placeholder={isLastEmptyRow ? 'Name' : ''}
-        />
+      render: ({ row, value, onChange, isLastEmptyRow }: any) => (
+        <HeaderEditor type="name" value={value} theme={storedTheme} onSave={onSave} onChange={onChange}
+          onRun={handleRun} collection={collection} item={item} rowUid={row.uid}
+          isLastEmptyRow={isLastEmptyRow} placeholder={isLastEmptyRow ? 'Name' : ''} />
       )
     },
     {
       key: 'value',
       name: 'Value',
       placeholder: 'Value',
-      render: ({
-        row,
-        value,
-        onChange,
-        isLastEmptyRow
-      }: any) => (
-        <SingleLineEditor
-          value={value || ''}
-          theme={storedTheme}
-          onSave={onSave}
-          onChange={onChange}
-          onRun={handleRun}
-          autocomplete={MimeTypes}
-          collection={collection}
-          item={item}
-          placeholder={isLastEmptyRow ? 'Value' : ''}
-        />
+      render: ({ row, value, onChange, isLastEmptyRow }: any) => (
+        <HeaderEditor type="value" value={value} theme={storedTheme} onSave={onSave} onChange={onChange}
+          onRun={handleRun} collection={collection} item={item} rowUid={row.uid}
+          isLastEmptyRow={isLastEmptyRow} placeholder={isLastEmptyRow ? 'Value' : ''} />
       )
     }
   ];
@@ -133,6 +96,7 @@ const RequestHeaders = ({
         rows={headers || []}
         onChange={handleHeadersChange}
         defaultRow={defaultRow}
+        getRowError={getHeaderRowError}
         reorderable={true}
         onReorder={handleHeaderDrag}
       />
